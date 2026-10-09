@@ -1,7 +1,18 @@
-Faceless Studio backend - deployment smoke-test scaffold
+Faceless Studio - ElevenLabs narration endpoint update
 
-Upload the CONTENTS of worker/ into the existing worker/ folder of your GitHub repo.
-Do not replace the existing worker/.env.example or worker/README.md.
-These files add a Node.js HTTP server, health endpoint, FFmpeg check endpoint, and Dockerfile.
-No video generation, storage, login, or TTS is implemented in this smoke-test stage.
-Do not add API secrets to GitHub.
+Upload ONLY worker/server.js into the existing GitHub worker folder, replacing the old server.js.
+Do not upload the entire extracted folder at repository root.
+No new dependencies or Dockerfile changes required.
+
+Endpoint: POST /api/narration
+Header: Authorization: Bearer <STUDIO_API_TOKEN>
+Header: Content-Type: application/json
+Body: {"script":"Your narration text"}
+Success: audio/mpeg file download
+
+Required Render private environment variables:
+STUDIO_API_TOKEN
+ELEVENLABS_API_KEY
+ELEVENLABS_VOICE_ID
+
+This is a server-only integration. It does not yet save audio to Cloudflare R2 or expose a public website UI.
