@@ -1,37 +1,37 @@
 
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { timingSafeEqual, randomUUID } from 'node:crypto';
+import {
+  timingSafeEqual,
+  randomUUID,
+  createHash,
+  createHmac
+} from 'node:crypto';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
 const execFileAsync = promisify(execFile);
-
 const port = Number(process.env.PORT || 10000);
 
-const MAX_BODY_BYTES = 12_000;
+const MAX_BODY_BYTES = 12000;
 const MAX_SCRIPT_CHARS = 4000;
 const MAX_VIDEO_SCRIPT_CHARS = 350;
-
-const ELEVENLABS_TIMEOUT_MS = 45000;
-const PIXABAY_TIMEOUT_MS = 15000;
-const DOWNLOAD_TIMEOUT_MS = 30000;
-const RENDER_TIMEOUT_MS = 120000;
+const MAX_FOOTAGE_BYTES = 40000000;
+const MAX_OUTPUT_BYTES = 60000000;
 
 let videoJobRunning = false;
 
-// -------------------------------------------
-// HELPERS
-// -------------------------------------------
+// -------------------------------------
+// GENERAL HELPERS
+// -------------------------------------
 
 function json(res, status, body) {
   res.writeHead(status, {
     'Content-Type': 'application/json; charset=utf-8',
     'Cache-Control': 'no-store'
   });
-
   res.end(JSON.stringify(body));
 }
 
@@ -40,23 +40,32 @@ function authorized(header, secret) {
     return false;
   }
 
-  const provided = Buffer.from(header.slice(7));
+  const supplied = Buffer.from(header.slice(7));
   const expected = Buffer.from(secret);
 
-  return (
-    provided.length === expected.length &&
-    timingSafeEqual(provided, expected)
-  );
+  return supplied.length === expected.length &&
+    timingSafeEqual(supplied, expected);
+}
+
+function requireAuth(req, res) {
+  if (!authorized(
+    req.headers.authorization,
+    process.env.STUDIO_API_TOKEN
+  )) {
+    json(res, 401, { error: 'Unauthorized' });
+    return false;
+  }
+  return true;
 }
 
 async function readJson(req) {
-  let total = 0;
   const chunks = [];
+  let size = 0;
 
   for await (const chunk of req) {
-    total += chunk.length;
+    size += chunk.length;
 
-    if (total > MAX_BODY_BYTES) {
+    if (size > MAX_BODY_BYTES) {
       const error = new Error('Request too large');
       error.status = 413;
       throw error;
@@ -76,24 +85,37 @@ async function readJson(req) {
   }
 }
 
-function requireAuth(req, res) {
-  if (!authorized(
-    req.headers.authorization,
-    process.env.STUDIO_API_TOKEN
-  )) {
-    json(res, 401, {
-      error: 'Unauthorized'
+function requireJson(req, res) {
+  if (!req.headers['content-type']
+    ?.toLowerCase()
+    .startsWith('application/json')) {
+    json(res, 415, {
+      error: 'Content-Type must be application/json'
     });
-
     return false;
   }
-
   return true;
 }
 
-// -------------------------------------------
-// ELEVENLABS AUDIO GENERATION
-// -------------------------------------------
+function apiError(res, error, fallback) {
+  console.error(fallback, error.message);
+
+  const status = error.status ||
+    (error.name === 'TimeoutError' ? 504 : 502);
+
+  return json(res, status, {
+    error: error.status && error.status < 500
+      ? error.message
+      : fallback,
+    ...(error.upstream_status
+      ? { upstream_status: error.upstream_status }
+      : {})
+  });
+}
+
+// -------------------------------------
+// ELEVENLABS NARRATION
+// -------------------------------------
 
 async function createNarration(script) {
   const apiKey = process.env.ELEVENLABS_API_KEY;
@@ -128,28 +150,17 @@ async function createNarration(script) {
           use_speaker_boost: true
         }
       }),
-      signal: AbortSignal.timeout(
-        ELEVENLABS_TIMEOUT_MS
-      )
+      signal: AbortSignal.timeout(45000)
     }
   );
 
   if (!response.ok) {
-    console.error(
-      'ElevenLabs failed:',
-      response.status
-    );
-
     const error = new Error(
       'ElevenLabs narration failed'
     );
-
     error.status = response.status === 429
-      ? 429
-      : 502;
-
+      ? 429 : 502;
     error.upstream_status = response.status;
-
     throw error;
   }
 
@@ -157,23 +168,16 @@ async function createNarration(script) {
     await response.arrayBuffer()
   );
 
-  if (
-    !audio.length ||
-    audio.length > 20000000
-  ) {
-    const error = new Error(
-      'Unexpected narration audio size'
-    );
-    error.status = 502;
-    throw error;
+  if (!audio.length || audio.length > 20000000) {
+    throw new Error('Invalid narration audio');
   }
 
   return audio;
 }
 
-// -------------------------------------------
-// PIXABAY VIDEO SEARCH
-// -------------------------------------------
+// -------------------------------------
+// PIXABAY SEARCH
+// -------------------------------------
 
 async function findPixabayVideos(query) {
   const apiKey = process.env.PIXABAY_API_KEY;
@@ -196,30 +200,17 @@ async function findPixabayVideos(query) {
   url.searchParams.set('safesearch', 'true');
 
   const response = await fetch(url, {
-    headers: {
-      Accept: 'application/json'
-    },
-    signal: AbortSignal.timeout(
-      PIXABAY_TIMEOUT_MS
-    )
+    headers: { Accept: 'application/json' },
+    signal: AbortSignal.timeout(15000)
   });
 
   if (!response.ok) {
-    console.error(
-      'Pixabay failed:',
-      response.status
-    );
-
     const error = new Error(
-      'Pixabay video search failed'
+      'Pixabay search failed'
     );
-
     error.status = response.status === 429
-      ? 429
-      : 502;
-
+      ? 429 : 502;
     error.upstream_status = response.status;
-
     throw error;
   }
 
@@ -227,7 +218,7 @@ async function findPixabayVideos(query) {
 
   return {
     total: data.totalHits || 0,
-    videos: (data.hits || []).map((hit) => {
+    videos: (data.hits || []).map(hit => {
       const video =
         hit.videos?.medium ||
         hit.videos?.small ||
@@ -251,112 +242,91 @@ async function findPixabayVideos(query) {
   };
 }
 
-// -------------------------------------------
-// SECURE STOCK VIDEO DOWNLOAD
-// -------------------------------------------
+// -------------------------------------
+// DOWNLOAD PIXABAY FOOTAGE
+// -------------------------------------
 
-async function downloadStockVideo(videoUrl, outputPath) {
-  const parsed = new URL(videoUrl);
+async function downloadStockVideo(url, filePath) {
+  const parsed = new URL(url);
 
   if (
     parsed.protocol !== 'https:' ||
     parsed.hostname !== 'cdn.pixabay.com'
   ) {
-    throw new Error(
-      'Unsupported stock footage URL'
-    );
+    throw new Error('Unsupported footage URL');
   }
 
   const response = await fetch(parsed, {
     redirect: 'error',
-    signal: AbortSignal.timeout(
-      DOWNLOAD_TIMEOUT_MS
-    )
+    signal: AbortSignal.timeout(30000)
   });
 
   if (!response.ok) {
     throw new Error(
-      `Stock footage download failed: ${response.status}`
+      `Footage download failed: ${response.status}`
     );
   }
-
-  const MAX_VIDEO_BYTES = 40000000;
 
   const declaredSize = Number(
     response.headers.get('content-length') || 0
   );
 
-  if (declaredSize > MAX_VIDEO_BYTES) {
-    throw new Error(
-      'Stock footage exceeds size limit'
-    );
+  if (declaredSize > MAX_FOOTAGE_BYTES) {
+    throw new Error('Footage is too large');
   }
 
   const chunks = [];
-  let total = 0;
+  let size = 0;
 
-  try {
-    for await (const chunk of response.body) {
-      total += chunk.length;
+  for await (const chunk of response.body) {
+    size += chunk.length;
 
-      if (total > MAX_VIDEO_BYTES) {
-        throw new Error(
-          'Stock footage exceeds size limit'
-        );
-      }
-
-      chunks.push(chunk);
+    if (size > MAX_FOOTAGE_BYTES) {
+      throw new Error('Footage is too large');
     }
-  } catch (error) {
-    await response.body?.cancel?.().catch(() => {});
-    throw error;
+
+    chunks.push(chunk);
   }
 
-  if (!total) {
-    throw new Error('Stock footage is empty');
+  if (!size) {
+    throw new Error('Empty footage file');
   }
 
   await fs.writeFile(
-    outputPath,
+    filePath,
     Buffer.concat(chunks)
   );
 }
 
-// -------------------------------------------
-// FFPROBE: AUDIO DURATION
-// -------------------------------------------
+// -------------------------------------
+// AUDIO DURATION
+// -------------------------------------
 
-async function getAudioDuration(audioPath) {
+async function getAudioDuration(filePath) {
   const { stdout } = await execFileAsync(
     'ffprobe',
     [
       '-v', 'error',
       '-show_entries', 'format=duration',
-      '-of', 'default=noprint_wrappers=1:nokey=1',
-      audioPath
+      '-of',
+      'default=noprint_wrappers=1:nokey=1',
+      filePath
     ],
-    {
-      timeout: 10000
-    }
+    { timeout: 10000 }
   );
 
   const duration = Number(stdout.trim());
 
-  if (
-    !Number.isFinite(duration) ||
-    duration <= 0
-  ) {
-    throw new Error(
-      'Unable to determine audio duration'
-    );
+  if (!Number.isFinite(duration) || duration <= 0) {
+    throw new Error('Invalid audio duration');
   }
 
   return duration;
 }
 
-// -------------------------------------------
-// FFMPEG: GENERATE LANDSCAPE MP4
-// -------------------------------------------
+// -------------------------------------
+// FFMPEG VIDEO RENDERING
+// -------------------------------------
 
 async function renderVideo({
   footagePath,
@@ -364,66 +334,249 @@ async function renderVideo({
   outputPath,
   duration
 }) {
-  const args = [
-    '-y',
-
-    '-stream_loop', '-1',
-    '-i', footagePath,
-
-    '-i', audioPath,
-
-    '-map', '0:v:0',
-    '-map', '1:a:0',
-
-    '-vf',
-    'scale=1280:720:force_original_aspect_ratio=increase,' +
-    'crop=1280:720,' +
-    'fps=24,' +
-    'format=yuv420p',
-
-    '-c:v', 'libx264',
-    '-preset', 'ultrafast',
-    '-crf', '28',
-
-    '-c:a', 'aac',
-    '-b:a', '128k',
-
-    '-t', String(duration),
-
-    '-movflags', '+faststart',
-
-    '-threads', '2',
-
-    outputPath
-  ];
-
   await execFileAsync(
     'ffmpeg',
-    args,
+    [
+      '-y',
+      '-stream_loop', '-1',
+      '-i', footagePath,
+      '-i', audioPath,
+      '-map', '0:v:0',
+      '-map', '1:a:0',
+      '-vf',
+      'scale=1280:720:force_original_aspect_ratio=increase,' +
+      'crop=1280:720,fps=24,format=yuv420p',
+      '-c:v', 'libx264',
+      '-preset', 'ultrafast',
+      '-crf', '28',
+      '-c:a', 'aac',
+      '-b:a', '128k',
+      '-t', String(duration),
+      '-movflags', '+faststart',
+      '-threads', '2',
+      outputPath
+    ],
     {
-      timeout: RENDER_TIMEOUT_MS,
+      timeout: 120000,
       maxBuffer: 1024 * 1024
     }
   );
 }
 
-// -------------------------------------------
-// EXISTING NARRATION ENDPOINT
-// POST /api/narration
-// -------------------------------------------
+// -------------------------------------
+// CLOUDFLARE R2 UPLOAD
+// AWS SIGNATURE VERSION 4
+// -------------------------------------
+
+function sha256(value) {
+  return createHash('sha256')
+    .update(value)
+    .digest('hex');
+}
+
+function hmac(key, value) {
+  return createHmac('sha256', key)
+    .update(value)
+    .digest();
+}
+
+function r2Config() {
+  const accountId = process.env.R2_ACCOUNT_ID;
+  const bucket = process.env.R2_BUCKET_NAME;
+  const accessKey = process.env.R2_ACCESS_KEY_ID;
+  const secretKey = process.env.R2_SECRET_ACCESS_KEY;
+
+  if (!accountId || !bucket || !accessKey || !secretKey) {
+    const error = new Error(
+      'R2 environment variables are missing'
+    );
+    error.status = 503;
+    throw error;
+  }
+
+  return {
+    accountId,
+    bucket,
+    accessKey,
+    secretKey
+  };
+}
+
+function signedR2Request({
+  method,
+  objectKey,
+  body,
+  expiresSeconds
+}) {
+  const config = r2Config();
+
+  const host =
+    `${config.accountId}.r2.cloudflarestorage.com`;
+
+  const objectPath =
+    '/' + encodeURIComponent(config.bucket) +
+    '/' + objectKey
+      .split('/')
+      .map(encodeURIComponent)
+      .join('/');
+
+  const now = new Date();
+  const amzDate = now.toISOString()
+    .replace(/[:-]|\.\d{3}/g, '');
+
+  const dateStamp = amzDate.slice(0, 8);
+  const scope =
+    `${dateStamp}/auto/s3/aws4_request`;
+
+  const payloadHash = body
+    ? sha256(body)
+    : 'UNSIGNED-PAYLOAD';
+
+  const isDownload = method === 'GET';
+
+  let canonicalQuery = '';
+  let canonicalHeaders = '';
+  let signedHeaders = '';
+  let authorization = '';
+
+  const signingKey = hmac(
+    hmac(
+      hmac(
+        hmac(
+          `AWS4${config.secretKey}`,
+          dateStamp
+        ),
+        'auto'
+      ),
+      's3'
+    ),
+    'aws4_request'
+  );
+
+  if (isDownload) {
+    const params = [
+      [
+        'X-Amz-Algorithm',
+        'AWS4-HMAC-SHA256'
+      ],
+      [
+        'X-Amz-Credential',
+        `${config.accessKey}/${scope}`
+      ],
+      ['X-Amz-Date', amzDate],
+      ['X-Amz-Expires', String(expiresSeconds)],
+      ['X-Amz-SignedHeaders', 'host']
+    ];
+
+    canonicalQuery = params
+      .map(([key, value]) => [
+        encodeURIComponent(key),
+        encodeURIComponent(value)
+      ])
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([key, value]) => `${key}=${value}`)
+      .join('&');
+
+    canonicalHeaders = `host:${host}\n`;
+    signedHeaders = 'host';
+  } else {
+    canonicalHeaders =
+      `host:${host}\n` +
+      `x-amz-content-sha256:${payloadHash}\n` +
+      `x-amz-date:${amzDate}\n`;
+
+    signedHeaders =
+      'host;x-amz-content-sha256;x-amz-date';
+  }
+
+  const canonicalRequest = [
+    method,
+    objectPath,
+    canonicalQuery,
+    canonicalHeaders,
+    signedHeaders,
+    payloadHash
+  ].join('\n');
+
+  const stringToSign = [
+    'AWS4-HMAC-SHA256',
+    amzDate,
+    scope,
+    sha256(canonicalRequest)
+  ].join('\n');
+
+  const signature = createHmac(
+    'sha256',
+    signingKey
+  ).update(stringToSign).digest('hex');
+
+  if (isDownload) {
+    const url =
+      `https://${host}${objectPath}?` +
+      canonicalQuery +
+      `&X-Amz-Signature=${signature}`;
+
+    return { url };
+  }
+
+  authorization =
+    `AWS4-HMAC-SHA256 Credential=` +
+    `${config.accessKey}/${scope}, ` +
+    `SignedHeaders=${signedHeaders}, ` +
+    `Signature=${signature}`;
+
+  return {
+    url: `https://${host}${objectPath}`,
+    headers: {
+      Authorization: authorization,
+      'x-amz-date': amzDate,
+      'x-amz-content-sha256': payloadHash,
+      'Content-Type': 'video/mp4'
+    }
+  };
+}
+
+async function uploadVideoToR2(videoBuffer) {
+  const objectKey = `videos/${randomUUID()}.mp4`;
+
+  const signed = signedR2Request({
+    method: 'PUT',
+    objectKey,
+    body: videoBuffer
+  });
+
+  const response = await fetch(signed.url, {
+    method: 'PUT',
+    headers: signed.headers,
+    body: videoBuffer,
+    signal: AbortSignal.timeout(60000)
+  });
+
+  if (!response.ok) {
+    console.error(
+      'R2 upload status:',
+      response.status
+    );
+
+    throw new Error(
+      `R2 upload failed with HTTP ${response.status}`
+    );
+  }
+
+  console.log('R2 upload successful:', objectKey);
+
+  return objectKey;
+}
+
+// -------------------------------------
+// NARRATION ENDPOINT
+// -------------------------------------
 
 async function narrationEndpoint(req, res) {
   if (!requireAuth(req, res)) return;
+  if (!requireJson(req, res)) return;
 
   try {
-    if (!req.headers['content-type']
-      ?.toLowerCase()
-      .startsWith('application/json')) {
-      return json(res, 415, {
-        error: 'Content-Type must be application/json'
-      });
-    }
-
     const body = await readJson(req);
     const script = body?.script;
 
@@ -433,8 +586,7 @@ async function narrationEndpoint(req, res) {
       script.length > MAX_SCRIPT_CHARS
     ) {
       return json(res, 400, {
-        error:
-          `script must contain 1-${MAX_SCRIPT_CHARS} characters`
+        error: 'Invalid script'
       });
     }
 
@@ -450,29 +602,16 @@ async function narrationEndpoint(req, res) {
       'Cache-Control': 'no-store'
     });
 
-    return res.end(audio);
+    res.end(audio);
 
   } catch (error) {
-    console.error(
-      'Narration endpoint error:',
-      error.message
-    );
-
-    return json(res, error.status || 502, {
-      error: error.status && error.status < 500
-        ? error.message
-        : 'Narration generation failed',
-      ...(error.upstream_status
-        ? { upstream_status: error.upstream_status }
-        : {})
-    });
+    apiError(res, error, 'Narration generation failed');
   }
 }
 
-// -------------------------------------------
-// EXISTING PIXABAY SEARCH ENDPOINT
-// GET /api/footage/search?q=space
-// -------------------------------------------
+// -------------------------------------
+// FOOTAGE SEARCH ENDPOINT
+// -------------------------------------
 
 async function footageSearchEndpoint(req, res, url) {
   if (!requireAuth(req, res)) return;
@@ -483,8 +622,7 @@ async function footageSearchEndpoint(req, res, url) {
 
   if (!query || query.length > 100) {
     return json(res, 400, {
-      error:
-        'Search query must contain 1-100 characters'
+      error: 'Invalid search query'
     });
   }
 
@@ -498,42 +636,21 @@ async function footageSearchEndpoint(req, res, url) {
     });
 
   } catch (error) {
-    console.error(
-      'Footage search error:',
-      error.message
-    );
-
-    return json(res, error.status || 502, {
-      error: error.status === 429
-        ? 'Pixabay rate limit reached'
-        : 'Unable to search stock footage',
-      ...(error.upstream_status
-        ? { upstream_status: error.upstream_status }
-        : {})
-    });
+    apiError(res, error, 'Footage search failed');
   }
 }
 
-// -------------------------------------------
-// NEW: COMPLETE MP4 GENERATOR
-// POST /api/video/generate
-// -------------------------------------------
+// -------------------------------------
+// VIDEO GENERATION + R2 UPLOAD
+// -------------------------------------
 
 async function generateVideoEndpoint(req, res) {
   if (!requireAuth(req, res)) return;
+  if (!requireJson(req, res)) return;
 
   if (videoJobRunning) {
     return json(res, 429, {
-      error:
-        'Another video is being generated. Please try again shortly.'
-    });
-  }
-
-  if (!req.headers['content-type']
-    ?.toLowerCase()
-    .startsWith('application/json')) {
-    return json(res, 415, {
-      error: 'Content-Type must be application/json'
+      error: 'Another video is being generated'
     });
   }
 
@@ -556,8 +673,7 @@ async function generateVideoEndpoint(req, res) {
     script.length > MAX_VIDEO_SCRIPT_CHARS
   ) {
     return json(res, 400, {
-      error:
-        `script must contain 1-${MAX_VIDEO_SCRIPT_CHARS} characters`
+      error: 'Script must contain 1-350 characters'
     });
   }
 
@@ -567,82 +683,74 @@ async function generateVideoEndpoint(req, res) {
     topic.length > 100
   ) {
     return json(res, 400, {
-      error:
-        'topic must contain 1-100 characters'
+      error: 'Topic must contain 1-100 characters'
     });
   }
 
   videoJobRunning = true;
-
   let tempDir;
 
   try {
+    // Check R2 configuration before using
+    // ElevenLabs credits.
+    r2Config();
+
     tempDir = await fs.mkdtemp(
       path.join(os.tmpdir(), 'faceless-')
     );
 
-    const audioPath = path.join(
-      tempDir,
-      'narration.mp3'
-    );
+    const audioPath =
+      path.join(tempDir, 'narration.mp3');
 
-    const footagePath = path.join(
-      tempDir,
-      'footage.mp4'
-    );
+    const footagePath =
+      path.join(tempDir, 'footage.mp4');
 
-    const outputPath = path.join(
-      tempDir,
-      'final-video.mp4'
-    );
+    const outputPath =
+      path.join(tempDir, 'final-video.mp4');
 
-    console.log(
-      'Video job started:',
-      randomUUID()
-    );
+    console.log('Generating narration');
 
-    // Step 1: Generate narration
     const audio = await createNarration(
       script.trim()
     );
 
     await fs.writeFile(audioPath, audio);
 
-    // Step 2: Find footage
+    console.log('Searching Pixabay');
+
     const search = await findPixabayVideos(
       topic.trim()
     );
 
-    const matchingVideos = search.videos.filter(
-      (video) => video.video_url
+    const clips = search.videos.filter(
+      video => video.video_url
     );
 
-    if (!matchingVideos.length) {
+    if (!clips.length) {
       return json(res, 404, {
-        error:
-          'No stock footage found for this topic'
+        error: 'No matching stock footage found'
       });
     }
 
-    // Step 3: Download first matching clip
+    console.log('Downloading footage');
+
     await downloadStockVideo(
-      matchingVideos[0].video_url,
+      clips[0].video_url,
       footagePath
     );
 
-    // Step 4: Get narration duration
     const duration = await getAudioDuration(
       audioPath
     );
 
     if (duration > 60) {
       return json(res, 400, {
-        error:
-          'Narration exceeds the 60-second test limit'
+        error: 'Narration exceeds 60 seconds'
       });
     }
 
-    // Step 5: Render video
+    console.log('Rendering MP4');
+
     await renderVideo({
       footagePath,
       audioPath,
@@ -650,55 +758,47 @@ async function generateVideoEndpoint(req, res) {
       duration
     });
 
-    // Step 6: Return MP4
     const video = await fs.readFile(
       outputPath
     );
 
-    if (!video.length) {
-      throw new Error(
-        'Generated video is empty'
-      );
+    if (
+      !video.length ||
+      video.length > MAX_OUTPUT_BYTES
+    ) {
+      throw new Error('Invalid output video size');
     }
 
-    console.log(
-      'Video generated:',
-      video.length,
-      'bytes'
+    console.log('Uploading MP4 to R2');
+
+    const objectKey = await uploadVideoToR2(
+      video
     );
 
+    console.log(
+      'Saved video successfully:',
+      objectKey
+    );
+
+    // Keep the existing direct MP4 download.
     res.writeHead(200, {
       'Content-Type': 'video/mp4',
       'Content-Disposition':
         'attachment; filename="faceless-studio-video.mp4"',
       'Content-Length': video.length,
-      'Cache-Control': 'no-store'
+      'Cache-Control': 'no-store',
+      'X-Studio-Storage': 'r2'
     });
 
-    return res.end(video);
+    res.end(video);
 
   } catch (error) {
-    console.error(
-      'Video generation error:',
-      error.message
-    );
-
     if (res.headersSent) {
-      return res.destroy(error);
+      res.destroy(error);
+      return;
     }
 
-    const status =
-      error.status ||
-      (error.name === 'TimeoutError' ? 504 : 502);
-
-    return json(res, status, {
-      error: error.status && error.status < 500
-        ? error.message
-        : 'Video generation failed',
-      ...(error.upstream_status
-        ? { upstream_status: error.upstream_status }
-        : {})
-    });
+    apiError(res, error, 'Video generation failed');
 
   } finally {
     if (tempDir) {
@@ -709,7 +809,7 @@ async function generateVideoEndpoint(req, res) {
         });
       } catch (error) {
         console.error(
-          'Temporary cleanup failed:',
+          'Cleanup error:',
           error.message
         );
       }
@@ -719,9 +819,9 @@ async function generateVideoEndpoint(req, res) {
   }
 }
 
-// -------------------------------------------
+// -------------------------------------
 // MAIN HTTP SERVER
-// -------------------------------------------
+// -------------------------------------
 
 const server = http.createServer(
   async (req, res) => {
@@ -730,7 +830,6 @@ const server = http.createServer(
       'http://localhost'
     );
 
-    // Health check
     if (
       req.method === 'GET' &&
       url.pathname === '/health'
@@ -741,7 +840,6 @@ const server = http.createServer(
       });
     }
 
-    // FFmpeg check
     if (
       req.method === 'GET' &&
       url.pathname === '/ffmpeg-status'
@@ -750,11 +848,11 @@ const server = http.createServer(
         'ffmpeg',
         ['-version'],
         { timeout: 5000 },
-        (err, stdout) => {
-          return json(
+        (error, stdout) => {
+          json(
             res,
-            err ? 503 : 200,
-            err
+            error ? 503 : 200,
+            error
               ? { status: 'unavailable' }
               : {
                   status: 'ready',
@@ -765,7 +863,6 @@ const server = http.createServer(
       );
     }
 
-    // ElevenLabs narration
     if (url.pathname === '/api/narration') {
       if (req.method !== 'POST') {
         return json(res, 405, {
@@ -776,7 +873,6 @@ const server = http.createServer(
       return narrationEndpoint(req, res);
     }
 
-    // Pixabay footage search
     if (url.pathname === '/api/footage/search') {
       if (req.method !== 'GET') {
         return json(res, 405, {
@@ -791,7 +887,6 @@ const server = http.createServer(
       );
     }
 
-    // New MP4 generation endpoint
     if (url.pathname === '/api/video/generate') {
       if (req.method !== 'POST') {
         return json(res, 405, {
@@ -799,10 +894,7 @@ const server = http.createServer(
         });
       }
 
-      return generateVideoEndpoint(
-        req,
-        res
-      );
+      return generateVideoEndpoint(req, res);
     }
 
     return json(res, 404, {
