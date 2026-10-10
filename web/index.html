@@ -35,9 +35,9 @@
 <div class="shell hidden" id="appShell">
 <aside class="sidebar"><div class="brand"><div class="brandmark">✦</div><div>FACELESS <span style="color:#a89aff">STUDIO</span><div class="small" style="font-weight:500;letter-spacing:1px;margin-top:3px">CREATOR WORKSPACE</div></div></div><nav class="nav" aria-label="Main navigation"><button class="active" data-page="create"><span>✦</span> Create Studio</button><button data-page="library"><span>▣</span> My Videos</button><button data-page="settings"><span>⚙</span> Setup & Status</button></nav><div class="sidebar-bottom"><div style="font-weight:700;margin-bottom:7px">Your creative engine</div><div class="small" style="line-height:1.7">ElevenLabs · Pixabay · FFmpeg · Cloudflare R2</div></div></aside>
 <main class="main"><div class="top"><div><div class="eyebrow">YOUR CREATIVE CONTROL CENTER</div><h1 id="pageTitle">Create something extraordinary.</h1><div class="muted" id="pageSubtitle">From an idea to cinematic content — one workspace.</div></div><div class="auth-top"><span class="auth-user" id="signedInEmail"></span><button class="secondary" id="signOut" type="button">Sign out</button></div></div>
-<section id="createPage"><div class="hero"><div><h2>Every great story starts with an idea. ✨</h2><p>Prepare your script and visual style here. Your workspace is now protected by Supabase sign-in. Video generation will be enabled after we add secure backend authorization.</p></div><div class="hero-visual" aria-hidden="true">🎬</div></div><div class="layout"><section class="panel"><h3>New creation</h3><p class="panel-desc">Choose a format, add a topic, and prepare your narration.</p><label class="label">Content format</label><div class="formats" role="group" aria-label="Content format"><button class="format active" data-format="youtube" aria-pressed="true"><strong>▣</strong>YouTube · 16:9</button><button class="format" data-format="short" aria-pressed="false"><strong>▯</strong>Short / Reel · 9:16</button><button class="format" data-format="photo" aria-pressed="false"><strong>▧</strong>Image · 1:1</button></div><label class="label" for="topic">Video topic / stock footage search</label><input class="field" id="topic" maxlength="100" placeholder="e.g. space galaxy, deep ocean, ancient Egypt" autocomplete="off"><div class="row"><label class="label" for="script">Narration script</label><span class="counter" id="counter">0 / 350</span></div><textarea class="field" id="script" maxlength="350" placeholder="Write your documentary-style script here..."></textarea><div class="two"><div><label class="label" for="voice">Narrator</label><select class="field" id="voice" disabled><option>Adam — Male English (configured)</option></select></div><div><label class="label" for="style">Narration style</label><select class="field" id="style" disabled><option>Cinematic documentary</option></select></div></div><div class="action"><button class="primary" id="generate" disabled title="Requires secure Supabase authentication">✦ Generate Video · Coming next</button><button class="secondary" id="save">Save draft</button><button class="secondary" id="example">Use example</button></div><div class="status" id="status" role="status"></div><div class="notice">🔒 <strong>Security first:</strong> video generation remains disabled until the Render backend validates Supabase sessions. Your private Render API token will never be embedded in this public website.</div></section><aside class="panel"><h3>Output preview</h3><p class="panel-desc">Your selected format and settings.</p><div class="preview" id="preview"><div><div class="preview-icon">▶</div><div style="font-weight:800;margin-top:8px">Your creation starts here</div><p>Video preview will appear after generation</p></div></div><div style="margin-top:15px"><div class="detail"><span>Output format</span><span id="formatDetail">Landscape · 16:9</span></div><div class="detail"><span>Resolution</span><span id="resolution">1280 × 720</span></div><div class="detail"><span>Voice</span><span>Adam</span></div><div class="detail"><span>Cloud storage</span><span>Cloudflare R2</span></div></div><p class="subtle" style="line-height:1.6;margin-top:22px">Currently, only landscape MP4 generation is supported by the backend. Portrait videos, images, subtitles, and thumbnails will be enabled as those pipelines are built.</p></aside></div></section>
-<section id="libraryPage" class="hidden"><div class="panel"><h3>My Videos</h3><p class="panel-desc">Your private video library will show content saved to Cloudflare R2.</p><div class="empty"><div style="font-size:42px">▣</div><strong>Connect your account to view your videos</strong><div>Your MP4 files are already being stored in R2. This page needs an authenticated listing and download API before it can display them.</div></div></div></section>
-<section id="settingsPage" class="hidden"><div class="panel"><h3>Integration roadmap</h3><p class="panel-desc">What is working today and what we'll connect next.</p><div class="step"><div class="step-num">✓</div><div><strong>Render video backend</strong><p>Generates MP4 from script, ElevenLabs narration, and Pixabay footage.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>Cloudflare R2 storage</strong><p>Generated MP4 files upload to your private bucket.</p></div></div><div class="step"><div class="step-num">1</div><div><strong>Supabase sign-in and secure API access</strong><p>Protect your backend and ElevenLabs credits. Do not expose private tokens in the browser.</p></div></div><div class="step"><div class="step-num">2</div><div><strong>One-click website generation</strong><p>Generate a video from this dashboard and show progress.</p></div></div><div class="step"><div class="step-num">3</div><div><strong>My Videos cloud library</strong><p>Browse and download your own R2 videos from any device.</p></div></div><div class="step"><div class="step-num">4</div><div><strong>Shorts, Reels, captions, thumbnails</strong><p>Add portrait rendering and more advanced editing.</p></div></div></div></section>
+<section id="createPage"><div class="hero"><div><h2>Every great story starts with an idea. ✨</h2><p>Prepare your script and visual style here. Your workspace is now protected by Supabase sign-in. Generate your first video directly from this dashboard. The finished MP4 is also saved privately to Cloudflare R2.</p></div><div class="hero-visual" aria-hidden="true">🎬</div></div><div class="layout"><section class="panel"><h3>New creation</h3><p class="panel-desc">Choose a format, add a topic, and prepare your narration.</p><label class="label">Content format</label><div class="formats" role="group" aria-label="Content format"><button class="format active" data-format="youtube" aria-pressed="true"><strong>▣</strong>YouTube · 16:9</button><button class="format" data-format="short" aria-pressed="false"><strong>▯</strong>Short / Reel · 9:16</button><button class="format" data-format="photo" aria-pressed="false"><strong>▧</strong>Image · 1:1</button></div><label class="label" for="topic">Video topic / stock footage search</label><input class="field" id="topic" maxlength="100" placeholder="e.g. space galaxy, deep ocean, ancient Egypt" autocomplete="off"><div class="row"><label class="label" for="script">Narration script</label><span class="counter" id="counter">0 / 350</span></div><textarea class="field" id="script" maxlength="350" placeholder="Write your documentary-style script here..."></textarea><div class="two"><div><label class="label" for="voice">Narrator</label><select class="field" id="voice" disabled><option>Adam — Male English (configured)</option></select></div><div><label class="label" for="style">Narration style</label><select class="field" id="style" disabled><option>Cinematic documentary</option></select></div></div><div class="action"><button class="primary" id="generate" disabled title="Checking secure access">✦ Checking access…</button><button class="secondary" id="save">Save draft</button><button class="secondary" id="example">Use example</button></div><div class="status" id="status" role="status"></div><div class="notice">🔒 <strong>Private by design:</strong> your Supabase login authorizes generation. Render API credentials stay on the server. The first release creates landscape MP4 only; My Videos browsing is coming next.</div></section><aside class="panel"><h3>Output preview</h3><p class="panel-desc">Your selected format and settings.</p><div class="preview" id="preview"><div><div class="preview-icon">▶</div><div style="font-weight:800;margin-top:8px">Your creation starts here</div><p>Video preview will appear after generation</p></div></div><div style="margin-top:15px"><div class="detail"><span>Output format</span><span id="formatDetail">Landscape · 16:9</span></div><div class="detail"><span>Resolution</span><span id="resolution">1280 × 720</span></div><div class="detail"><span>Voice</span><span>Adam</span></div><div class="detail"><span>Cloud storage</span><span>Cloudflare R2</span></div></div><p class="subtle" style="line-height:1.6;margin-top:22px">Currently, only landscape MP4 generation is supported by the backend. Portrait videos, images, subtitles, and thumbnails will be enabled as those pipelines are built.</p></aside></div></section>
+<section id="libraryPage" class="hidden"><div class="panel"><h3>My Videos</h3><p class="panel-desc">Your private video library will show content saved to Cloudflare R2.</p><div class="empty"><div style="font-size:42px">▣</div><strong>Connect your account to view your videos</strong><div>Your MP4 files are being stored privately in R2. An authenticated listing and download API is the next feature. For now, download each completed video after generation.</div></div></div></section>
+<section id="settingsPage" class="hidden"><div class="panel"><h3>Integration roadmap</h3><p class="panel-desc">What is working today and what we'll connect next.</p><div class="step"><div class="step-num">✓</div><div><strong>Render video backend</strong><p>Generates MP4 from script, ElevenLabs narration, and Pixabay footage.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>Cloudflare R2 storage</strong><p>Generated MP4 files upload to your private bucket.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>Supabase sign-in and secure API access</strong><p>Protect your backend and ElevenLabs credits. Do not expose private tokens in the browser.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>One-click website generation</strong><p>Generate a video from this dashboard and show progress.</p></div></div><div class="step"><div class="step-num">3</div><div><strong>My Videos cloud library</strong><p>Browse and download your own R2 videos from any device.</p></div></div><div class="step"><div class="step-num">4</div><div><strong>Shorts, Reels, captions, thumbnails</strong><p>Add portrait rendering and more advanced editing.</p></div></div></div></section>
 </main></div>
 <script>
 (() => {
@@ -97,8 +97,9 @@
 <script type="module">
 import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
 
-const SUPABASE_URL = 'https://tbmespqfhpmeueievjkl.supabase.co';
+const SUPABASE_URL = 'https://tbmespqfhpmeuievjkl.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_TYZ5nU_o1ur2EksN3-B5Mw_l9Qbl-jl';
+const API_BASE = 'https://faceless-studio-api.onrender.com';
 const REDIRECT_URL = 'https://bharat098.github.io/faceless-studio/';
 
 const $ = id => document.getElementById(id);
@@ -107,6 +108,10 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
 });
 let mode = 'signin';
 let busy = false;
+let generating = false;
+let authorizedForGeneration = false;
+let previewUrl = null;
+let generationController = null;
 
 function message(text, error = false) {
   $('authMessage').textContent = text;
@@ -130,11 +135,111 @@ function setMode(next) {
   $('authPassword').autocomplete = next === 'signup' ? 'new-password' : 'current-password';
   message('');
 }
+function updateGenerateButton() {
+  const button = $('generate');
+  button.disabled = !authorizedForGeneration || generating;
+  button.textContent = generating ? '◌ Generating video…' : '✦ Generate Video';
+  button.title = authorizedForGeneration ? 'Generate and save your MP4' : 'Checking account permissions';
+}
+
+async function verifyBackendAccess(session) {
+  authorizedForGeneration = false;
+  updateGenerateButton();
+  if (!session?.access_token) return;
+  try {
+    const response = await fetch(`${API_BASE}/api/me`, {
+      headers: { Authorization: `Bearer ${session.access_token}` },
+      signal: AbortSignal.timeout(20000)
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok || !result.authorized) {
+      $('status').textContent = result.error || `Backend access check failed (HTTP ${response.status}).`;
+      return;
+    }
+    authorizedForGeneration = true;
+    $('status').textContent = 'Connected securely to Render. Ready to create a landscape MP4.';
+  } catch (error) {
+    $('status').textContent = 'Could not reach Render. It may be waking up; refresh in a minute. ' + error.message;
+  } finally {
+    updateGenerateButton();
+  }
+}
+
+$('generate').addEventListener('click', async () => {
+  if (generating || !authorizedForGeneration) return;
+  const format = document.querySelector('[data-format].active')?.dataset.format;
+  if (format !== 'youtube') {
+    $('status').textContent = 'Only YouTube landscape (16:9) is available right now. Select YouTube to generate.';
+    return;
+  }
+  const topic = $('topic').value.trim();
+  const script = $('script').value.trim();
+  if (!topic || topic.length > 100 || !script || script.length > 350) {
+    $('status').textContent = 'Enter a topic (1–100 characters) and script (1–350 characters).';
+    return;
+  }
+  generating = true;
+  updateGenerateButton();
+  $('status').textContent = 'Creating narration, fetching footage, rendering MP4 and saving to R2. Please wait (up to 3 minutes)…';
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error || !data.session?.access_token) throw new Error('Please sign in again.');
+    generationController = new AbortController();
+    const timeout = setTimeout(() => generationController.abort(), 185000);
+    let response;
+    try {
+      response = await fetch(`${API_BASE}/api/video/generate`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${data.session.access_token}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ topic, script }),
+        signal: generationController.signal
+      });
+    } finally { clearTimeout(timeout); }
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `Generation failed (HTTP ${response.status})`);
+    }
+    const blob = await response.blob();
+    if (!blob.size || !blob.type.includes('video')) throw new Error('Server returned an invalid MP4.');
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    previewUrl = URL.createObjectURL(blob);
+    const preview = $('preview');
+    preview.replaceChildren();
+    const video = document.createElement('video');
+    video.src = previewUrl;
+    video.controls = true;
+    video.playsInline = true;
+    video.style.cssText = 'width:100%;height:100%;object-fit:contain;border-radius:14px';
+    preview.appendChild(video);
+    const download = document.createElement('a');
+    download.href = previewUrl;
+    download.download = 'faceless-studio-video.mp4';
+    download.className = 'secondary';
+    download.style.cssText = 'display:inline-block;margin-top:14px;text-decoration:none';
+    download.textContent = '↓ Download MP4';
+    preview.insertAdjacentElement('afterend', download);
+    document.querySelectorAll('#createPage a[download]').forEach(a => { if (a !== download) a.remove(); });
+    $('status').textContent = 'Video generated successfully and saved to private R2 storage. Preview or download it here!';
+  } catch (error) {
+    $('status').textContent = error.name === 'AbortError'
+      ? 'The request timed out. Check Render logs and R2 before retrying, because the upload may have completed.'
+      : error.message;
+  } finally {
+    generating = false;
+    generationController = null;
+    updateGenerateButton();
+  }
+});
+
 function showSession(session) {
   const signedIn = Boolean(session?.user);
   $('authScreen').classList.toggle('hidden', signedIn);
   $('appShell').classList.toggle('hidden', !signedIn);
   $('signedInEmail').textContent = signedIn ? (session.user.email || 'Signed in') : '';
+  if (!signedIn) { authorizedForGeneration = false; updateGenerateButton(); }
 }
 
 $('authSwitch').addEventListener('click', () => setMode(mode === 'signin' ? 'signup' : 'signin'));
@@ -159,6 +264,7 @@ $('authForm').addEventListener('submit', async event => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
       showSession(data.session);
+      await verifyBackendAccess(data.session);
     }
   } catch (error) {
     message(error.message || 'Unable to authenticate. Please try again.', true);
@@ -198,6 +304,7 @@ $('signOut').addEventListener('click', async () => {
 
 supabase.auth.onAuthStateChange((event, session) => {
   showSession(session);
+  if (session && event === 'SIGNED_IN') verifyBackendAccess(session);
   if (event === 'PASSWORD_RECOVERY') {
     const newPassword = prompt('Enter a new password (at least 6 characters):');
     if (newPassword && newPassword.length >= 6) {
@@ -214,6 +321,7 @@ try {
   const { data, error } = await supabase.auth.getSession();
   if (error) throw error;
   showSession(data.session);
+  await verifyBackendAccess(data.session);
 } catch (error) {
   showSession(null);
   message('Could not connect to Supabase. Check your connection and project settings.', true);
