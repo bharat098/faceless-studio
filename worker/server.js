@@ -1,7 +1,9 @@
 
 import http from 'node:http';
 import { execFile } from 'node:child_process';
-import { timingSafeEqual, randomUUID, createHash, createHmac } from 'node:crypto';
+import {
+  timingSafeEqual, randomUUID, createHash, createHmac
+} from 'node:crypto';
 import { promisify } from 'node:util';
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
@@ -10,7 +12,7 @@ import path from 'node:path';
 const run = promisify(execFile);
 const port = Number(process.env.PORT || 10000);
 const SITE_ORIGIN = 'https://bharat098.github.io';
-const MAX_BODY = 12000;
+const MAX_BODY = 11000000;
 let videoBusy = false;
 
 function json(res, status, data) {
@@ -48,8 +50,7 @@ async function auth(req, res) {
 
   const token = header.slice(7);
 
-  // Private token remains available for administrative testing.
-  // Never include it in frontend code.
+  // Never put STUDIO_API_TOKEN in frontend code.
   if (equal(token, process.env.STUDIO_API_TOKEN)) {
     return { type: 'admin' };
   }
@@ -105,15 +106,10 @@ async function auth(req, res) {
     };
 
   } catch (err) {
-    console.error(
-      'Supabase verification failed:',
-      err.message
-    );
-
+    console.error('Supabase verification failed:', err.message);
     json(res, 502, {
       error: 'Unable to verify login right now'
     });
-
     return null;
   }
 }
@@ -371,24 +367,85 @@ async function durationOf(audioPath) {
   return duration;
 }
 
-async function renderVideo(
-  clipPath,
+// Render a video or photo into a uniform 720p segment.
+async function makeSegment(source, kind, destination, seconds) {
+  const filter = kind === 'photo'
+    ? 'scale=1600:900:force_original_aspect_ratio=increase,crop=1600:900,' +
+      `zoompan=z='min(zoom+0.0007,1.12)':d=1:s=1280x720:fps=24,format=yuv420p`
+    : 'scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,fps=24,format=yuv420p';
+
+  const args = ['-y'];
+
+  if (kind === 'photo') {
+    args.push('-loop', '1', '-framerate', '24');
+  } else {
+    args.push('-stream_loop', '-1');
+  }
+
+  args.push(
+    '-i', source,
+    '-t', String(seconds),
+    '-an',
+    '-vf', filter,
+    '-c:v', 'libx264',
+    '-preset', 'ultrafast',
+    '-crf', '29',
+    '-pix_fmt', 'yuv420p',
+    '-r', '24',
+    '-threads', '2',
+    destination
+  );
+
+  await run('ffmpeg', args, {
+    timeout: 90000,
+    maxBuffer: 1024 * 1024
+  });
+}
+
+// Combine all segments and add the narration track.
+async function renderMontage(
+  sources,
   audioPath,
   outputPath,
-  duration
+  duration,
+  dir
 ) {
+  const segmentLength = duration / sources.length;
+  const segments = [];
+
+  for (let i = 0; i < sources.length; i++) {
+    const destination = path.join(
+      dir,
+      `segment-${i}.mp4`
+    );
+
+    await makeSegment(
+      sources[i].path,
+      sources[i].kind,
+      destination,
+      segmentLength + 0.08
+    );
+
+    segments.push(destination);
+  }
+
+  const concatFile = path.join(dir, 'segments.txt');
+
+  await fs.writeFile(
+    concatFile,
+    segments.map(f => `file '${f}'`).join('\n')
+  );
+
   await run(
     'ffmpeg',
     [
       '-y',
-      '-stream_loop', '-1',
-      '-i', clipPath,
+      '-f', 'concat',
+      '-safe', '0',
+      '-i', concatFile,
       '-i', audioPath,
       '-map', '0:v:0',
       '-map', '1:a:0',
-      '-vf',
-      'scale=1280:720:force_original_aspect_ratio=increase,' +
-      'crop=1280:720,fps=24,format=yuv420p',
       '-c:v', 'libx264',
       '-preset', 'ultrafast',
       '-crf', '28',
@@ -404,6 +461,69 @@ async function renderVideo(
       maxBuffer: 1024 * 1024
     }
   );
+}
+
+// ------------------------------------
+// PHOTO VALIDATION
+// ------------------------------------
+
+function validatePhotos(photos) {
+  if (photos === undefined) return [];
+
+  if (!Array.isArray(photos) || photos.length > 3) {
+    throw Object.assign(
+      new Error('Upload at most 3 photos'),
+      { status: 400 }
+    );
+  }
+
+  return photos.map((photo, index) => {
+    if (
+      !photo ||
+      !['image/jpeg', 'image/png'].includes(photo.type) ||
+      typeof photo.data !== 'string' ||
+      photo.data.length > 2800000 ||
+      !/^[A-Za-z0-9+/]+={0,2}$/.test(photo.data)
+    ) {
+      throw Object.assign(
+        new Error(
+          `Invalid photo ${index + 1}; JPG/PNG only, 2 MB maximum`
+        ),
+        { status: 400 }
+      );
+    }
+
+    const bytes = Buffer.from(photo.data, 'base64');
+
+    const jpeg =
+      bytes.length >= 3 &&
+      bytes[0] === 0xff &&
+      bytes[1] === 0xd8 &&
+      bytes[2] === 0xff;
+
+    const png =
+      bytes.length >= 8 &&
+      bytes.subarray(0, 8).equals(
+        Buffer.from([137, 80, 78, 71, 13, 10, 26, 10])
+      );
+
+    if (
+      bytes.length > 2 * 1024 * 1024 ||
+      bytes.length === 0 ||
+      (photo.type === 'image/jpeg' && !jpeg) ||
+      (photo.type === 'image/png' && !png)
+    ) {
+      throw Object.assign(
+        new Error(`Invalid photo ${index + 1}`),
+        { status: 400 }
+      );
+    }
+
+    return {
+      bytes,
+      ext: jpeg ? '.jpg' : '.png'
+    };
+  });
 }
 
 // ------------------------------------
@@ -572,6 +692,16 @@ async function generate(req, res, user) {
     });
   }
 
+  let photos;
+
+  try {
+    photos = validatePhotos(body.photos);
+  } catch (err) {
+    return json(res, err.status || 400, {
+      error: err.message
+    });
+  }
+
   videoBusy = true;
   let dir;
 
@@ -583,40 +713,13 @@ async function generate(req, res, user) {
     const audioPath =
       path.join(dir, 'narration.mp3');
 
-    const clipPath =
-      path.join(dir, 'footage.mp4');
-
     const outputPath =
       path.join(dir, 'final.mp4');
 
-    const audio = await narration(
-      script.trim()
-    );
-
+    const audio = await narration(script.trim());
     await fs.writeFile(audioPath, audio);
 
-    const results = await searchVideos(
-      topic.trim()
-    );
-
-    const clip = results.videos.find(
-      v => v.video_url
-    );
-
-    if (!clip) {
-      return json(res, 404, {
-        error: 'No matching stock footage found'
-      });
-    }
-
-    await downloadClip(
-      clip.video_url,
-      clipPath
-    );
-
-    const duration = await durationOf(
-      audioPath
-    );
+    const duration = await durationOf(audioPath);
 
     if (duration > 60) {
       return json(res, 400, {
@@ -624,11 +727,103 @@ async function generate(req, res, user) {
       });
     }
 
-    await renderVideo(
-      clipPath,
+    const sources = [];
+
+    // Save uploaded photos temporarily.
+    for (let i = 0; i < photos.length; i++) {
+      const photoPath = path.join(
+        dir,
+        `photo-${i}${photos[i].ext}`
+      );
+
+      await fs.writeFile(
+        photoPath,
+        photos[i].bytes
+      );
+
+      sources.push({
+        kind: 'photo',
+        path: photoPath
+      });
+    }
+
+    // Download multiple Pixabay clips.
+    const results = await searchVideos(topic.trim());
+
+    const candidates = results.videos.filter(
+      v => v.video_url
+    );
+
+    const wantedClips = Math.max(
+      1,
+      5 - sources.length
+    );
+
+    for (const candidate of candidates) {
+      const clipCount = sources.filter(
+        item => item.kind === 'video'
+      ).length;
+
+      if (clipCount >= wantedClips) break;
+
+      const clipPath = path.join(
+        dir,
+        `clip-${sources.length}.mp4`
+      );
+
+      try {
+        await downloadClip(
+          candidate.video_url,
+          clipPath
+        );
+
+        sources.push({
+          kind: 'video',
+          path: clipPath
+        });
+
+      } catch (err) {
+        console.warn(
+          'Skipping stock clip:',
+          err.message
+        );
+      }
+    }
+
+    if (!sources.length) {
+      return json(res, 404, {
+        error:
+          'No matching stock footage found; upload photos or try a broader topic'
+      });
+    }
+
+    // Alternate clips and uploaded photos.
+    const pictures = sources.filter(
+      item => item.kind === 'photo'
+    );
+
+    const clips = sources.filter(
+      item => item.kind === 'video'
+    );
+
+    const ordered = [];
+
+    while (pictures.length || clips.length) {
+      if (clips.length) {
+        ordered.push(clips.shift());
+      }
+
+      if (pictures.length) {
+        ordered.push(pictures.shift());
+      }
+    }
+
+    await renderMontage(
+      ordered,
       audioPath,
       outputPath,
-      duration
+      duration,
+      dir
     );
 
     const video = await fs.readFile(
