@@ -10,6 +10,7 @@
 .auth-screen{min-height:100vh;display:grid;place-items:center;padding:28px;background:radial-gradient(circle at 20% 20%,#6d50d530,transparent 36%),radial-gradient(circle at 80% 85%,#247bdc20,transparent 38%),#080c19}
 .auth-card{width:min(100%,440px);border:1px solid #ffffff20;border-radius:26px;background:#12192d;padding:34px;box-shadow:0 25px 80px #0007}
 .auth-logo{display:flex;align-items:center;gap:12px;font-size:19px;font-weight:800;margin-bottom:27px}.auth-card h2{font-size:28px;letter-spacing:-1px;margin:0 0 8px}.auth-card p{color:#a7b3cf;line-height:1.6;font-size:13px;margin:0 0 24px}.auth-card label{display:block;font-size:13px;font-weight:700;margin:15px 0 8px}.auth-card .field{width:100%}.auth-card .primary{width:100%;margin-top:23px}.auth-switch{background:none;border:0;color:#b4a3ff;padding:10px 0;font-weight:700}.auth-msg{font-size:13px;line-height:1.5;margin-top:15px;min-height:20px;color:#d4c4ff}.auth-msg.error{color:#ffb5bd}.auth-user{font-size:12px;color:#c4d0ed;max-width:210px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.auth-top{display:flex;align-items:center;gap:10px;flex-wrap:wrap;justify-content:flex-end}.auth-top button{padding:9px 12px;font-size:12px}.auth-card .smallnote{font-size:11px;color:#8b98b8;margin-top:17px;line-height:1.6}.auth-divider{height:1px;background:#ffffff15;margin:18px 0 8px}
+.upload-zone{border:1px dashed #8c83e477;border-radius:15px;padding:18px;background:#6e61e90d}.upload-zone input{display:block;margin-top:12px;width:100%;font-size:12px;color:#c9d1e5}.photo-thumbs{display:flex;flex-wrap:wrap;gap:10px;margin-top:12px}.photo-thumbs img{width:82px;height:64px;object-fit:cover;border-radius:9px;border:1px solid #ffffff30}.upload-hint{font-size:12px;color:#9da9c5;margin-top:9px;line-height:1.6}
 </style>
 </head>
 <body>
@@ -35,7 +36,7 @@
 <div class="shell hidden" id="appShell">
 <aside class="sidebar"><div class="brand"><div class="brandmark">✦</div><div>FACELESS <span style="color:#a89aff">STUDIO</span><div class="small" style="font-weight:500;letter-spacing:1px;margin-top:3px">CREATOR WORKSPACE</div></div></div><nav class="nav" aria-label="Main navigation"><button class="active" data-page="create"><span>✦</span> Create Studio</button><button data-page="library"><span>▣</span> My Videos</button><button data-page="settings"><span>⚙</span> Setup & Status</button></nav><div class="sidebar-bottom"><div style="font-weight:700;margin-bottom:7px">Your creative engine</div><div class="small" style="line-height:1.7">ElevenLabs · Pixabay · FFmpeg · Cloudflare R2</div></div></aside>
 <main class="main"><div class="top"><div><div class="eyebrow">YOUR CREATIVE CONTROL CENTER</div><h1 id="pageTitle">Create something extraordinary.</h1><div class="muted" id="pageSubtitle">From an idea to cinematic content — one workspace.</div></div><div class="auth-top"><span class="auth-user" id="signedInEmail"></span><button class="secondary" id="signOut" type="button">Sign out</button></div></div>
-<section id="createPage"><div class="hero"><div><h2>Every great story starts with an idea. ✨</h2><p>Prepare your script and visual style here. Your workspace is now protected by Supabase sign-in. Generate your first video directly from this dashboard. The finished MP4 is also saved privately to Cloudflare R2.</p></div><div class="hero-visual" aria-hidden="true">🎬</div></div><div class="layout"><section class="panel"><h3>New creation</h3><p class="panel-desc">Choose a format, add a topic, and prepare your narration.</p><label class="label">Content format</label><div class="formats" role="group" aria-label="Content format"><button class="format active" data-format="youtube" aria-pressed="true"><strong>▣</strong>YouTube · 16:9</button><button class="format" data-format="short" aria-pressed="false"><strong>▯</strong>Short / Reel · 9:16</button><button class="format" data-format="photo" aria-pressed="false"><strong>▧</strong>Image · 1:1</button></div><label class="label" for="topic">Video topic / stock footage search</label><input class="field" id="topic" maxlength="100" placeholder="e.g. space galaxy, deep ocean, ancient Egypt" autocomplete="off"><div class="row"><label class="label" for="script">Narration script</label><span class="counter" id="counter">0 / 350</span></div><textarea class="field" id="script" maxlength="350" placeholder="Write your documentary-style script here..."></textarea><div class="two"><div><label class="label" for="voice">Narrator</label><select class="field" id="voice" disabled><option>Adam — Male English (configured)</option></select></div><div><label class="label" for="style">Narration style</label><select class="field" id="style" disabled><option>Cinematic documentary</option></select></div></div><div class="action"><button class="primary" id="generate" disabled title="Checking secure access">✦ Checking access…</button><button class="secondary" id="save">Save draft</button><button class="secondary" id="example">Use example</button></div><div class="status" id="status" role="status"></div><div class="notice">🔒 <strong>Private by design:</strong> your Supabase login authorizes generation. Render API credentials stay on the server. The first release creates landscape MP4 only; My Videos browsing is coming next.</div></section><aside class="panel"><h3>Output preview</h3><p class="panel-desc">Your selected format and settings.</p><div class="preview" id="preview"><div><div class="preview-icon">▶</div><div style="font-weight:800;margin-top:8px">Your creation starts here</div><p>Video preview will appear after generation</p></div></div><div style="margin-top:15px"><div class="detail"><span>Output format</span><span id="formatDetail">Landscape · 16:9</span></div><div class="detail"><span>Resolution</span><span id="resolution">1280 × 720</span></div><div class="detail"><span>Voice</span><span>Adam</span></div><div class="detail"><span>Cloud storage</span><span>Cloudflare R2</span></div></div><p class="subtle" style="line-height:1.6;margin-top:22px">Currently, only landscape MP4 generation is supported by the backend. Portrait videos, images, subtitles, and thumbnails will be enabled as those pipelines are built.</p></aside></div></section>
+<section id="createPage"><div class="hero"><div><h2>Every great story starts with an idea. ✨</h2><p>Prepare your script and visual style here. Your workspace is now protected by Supabase sign-in. Generate your first video directly from this dashboard. The finished MP4 is also saved privately to Cloudflare R2.</p></div><div class="hero-visual" aria-hidden="true">🎬</div></div><div class="layout"><section class="panel"><h3>New creation</h3><p class="panel-desc">Choose a format, add a topic, and prepare your narration.</p><label class="label">Content format</label><div class="formats" role="group" aria-label="Content format"><button class="format active" data-format="youtube" aria-pressed="true"><strong>▣</strong>YouTube · 16:9</button><button class="format" data-format="short" aria-pressed="false"><strong>▯</strong>Short / Reel · 9:16</button><button class="format" data-format="photo" aria-pressed="false"><strong>▧</strong>Image · 1:1</button></div><label class="label" for="topic">Video topic / stock footage search</label><input class="field" id="topic" maxlength="100" placeholder="e.g. space galaxy, deep ocean, ancient Egypt" autocomplete="off"><div class="row"><label class="label" for="script">Narration script</label><span class="counter" id="counter">0 / 350</span></div><textarea class="field" id="script" maxlength="350" placeholder="Write your documentary-style script here..."></textarea><label class="label" for="photos">Your photos (optional)</label><div class="upload-zone"><strong style="font-size:13px">Add photos to your video montage</strong><input id="photos" type="file" accept="image/jpeg,image/png" multiple><div class="upload-hint">Up to 3 JPG/PNG images, max 2 MB each. Photos are included in the finished video, alternating with stock clips. Use only images you have permission to use.</div><div class="photo-thumbs" id="photoThumbs"></div></div><div class="two"><div><label class="label" for="voice">Narrator</label><select class="field" id="voice" disabled><option>Adam — Male English (configured)</option></select></div><div><label class="label" for="style">Narration style</label><select class="field" id="style" disabled><option>Cinematic documentary</option></select></div></div><div class="action"><button class="primary" id="generate" disabled title="Checking secure access">✦ Checking access…</button><button class="secondary" id="save">Save draft</button><button class="secondary" id="example">Use example</button></div><div class="status" id="status" role="status"></div><div class="notice">🔒 <strong>Private by design:</strong> your Supabase login authorizes generation. Render API credentials stay on the server. Landscape MP4 now supports multiple clips and up to three photos; My Videos browsing is coming next.</div></section><aside class="panel"><h3>Output preview</h3><p class="panel-desc">Your selected format and settings.</p><div class="preview" id="preview"><div><div class="preview-icon">▶</div><div style="font-weight:800;margin-top:8px">Your creation starts here</div><p>Video preview will appear after generation</p></div></div><div style="margin-top:15px"><div class="detail"><span>Output format</span><span id="formatDetail">Landscape · 16:9</span></div><div class="detail"><span>Resolution</span><span id="resolution">1280 × 720</span></div><div class="detail"><span>Voice</span><span>Adam</span></div><div class="detail"><span>Cloud storage</span><span>Cloudflare R2</span></div></div><p class="subtle" style="line-height:1.6;margin-top:22px">Currently, only landscape MP4 generation is supported by the backend. Portrait videos, images, subtitles, and thumbnails will be enabled as those pipelines are built.</p></aside></div></section>
 <section id="libraryPage" class="hidden"><div class="panel"><h3>My Videos</h3><p class="panel-desc">Your private video library will show content saved to Cloudflare R2.</p><div class="empty"><div style="font-size:42px">▣</div><strong>Connect your account to view your videos</strong><div>Your MP4 files are being stored privately in R2. An authenticated listing and download API is the next feature. For now, download each completed video after generation.</div></div></div></section>
 <section id="settingsPage" class="hidden"><div class="panel"><h3>Integration roadmap</h3><p class="panel-desc">What is working today and what we'll connect next.</p><div class="step"><div class="step-num">✓</div><div><strong>Render video backend</strong><p>Generates MP4 from script, ElevenLabs narration, and Pixabay footage.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>Cloudflare R2 storage</strong><p>Generated MP4 files upload to your private bucket.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>Supabase sign-in and secure API access</strong><p>Protect your backend and ElevenLabs credits. Do not expose private tokens in the browser.</p></div></div><div class="step"><div class="step-num">✓</div><div><strong>One-click website generation</strong><p>Generate a video from this dashboard and show progress.</p></div></div><div class="step"><div class="step-num">3</div><div><strong>My Videos cloud library</strong><p>Browse and download your own R2 videos from any device.</p></div></div><div class="step"><div class="step-num">4</div><div><strong>Shorts, Reels, captions, thumbnails</strong><p>Add portrait rendering and more advanced editing.</p></div></div></div></section>
 </main></div>
@@ -112,6 +113,35 @@ let generating = false;
 let authorizedForGeneration = false;
 let previewUrl = null;
 let generationController = null;
+let selectedPhotos = [];
+$('photos').addEventListener('change', async event => {
+  const files = Array.from(event.target.files || []);
+  if (files.length > 3 || files.some(file => file.size > 2 * 1024 * 1024 || !['image/jpeg','image/png'].includes(file.type))) {
+    selectedPhotos = [];
+    event.target.value = '';
+    $('photoThumbs').replaceChildren();
+    $('status').textContent = 'Choose up to 3 JPG/PNG photos, each 2 MB or smaller.';
+    return;
+  }
+  selectedPhotos = files;
+  $('photoThumbs').replaceChildren();
+  for (const file of files) {
+    const image = document.createElement('img');
+    image.src = URL.createObjectURL(file);
+    image.onload = () => URL.revokeObjectURL(image.src);
+    image.alt = file.name;
+    $('photoThumbs').appendChild(image);
+  }
+  $('status').textContent = files.length ? `${files.length} photo(s) ready for your video.` : 'No photos selected. Stock footage only.';
+});
+function fileBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).split(',')[1]);
+    reader.onerror = () => reject(new Error('Unable to read photo'));
+    reader.readAsDataURL(file);
+  });
+}
 
 function message(text, error = false) {
   $('authMessage').textContent = text;
@@ -180,10 +210,13 @@ $('generate').addEventListener('click', async () => {
   }
   generating = true;
   updateGenerateButton();
-  $('status').textContent = 'Creating narration, fetching footage, rendering MP4 and saving to R2. Please wait (up to 3 minutes)…';
+  $('status').textContent = 'Creating narration, combining multiple clips and photos, rendering MP4 and saving to R2. Please wait (up to 3 minutes)…';
   try {
     const { data, error } = await supabase.auth.getSession();
     if (error || !data.session?.access_token) throw new Error('Please sign in again.');
+    const photos = await Promise.all(selectedPhotos.map(async file => ({
+      type: file.type, data: await fileBase64(file)
+    })));
     generationController = new AbortController();
     const timeout = setTimeout(() => generationController.abort(), 185000);
     let response;
@@ -194,7 +227,7 @@ $('generate').addEventListener('click', async () => {
           Authorization: `Bearer ${data.session.access_token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ topic, script }),
+        body: JSON.stringify({ topic, script, photos }),
         signal: generationController.signal
       });
     } finally { clearTimeout(timeout); }
